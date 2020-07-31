@@ -1,0 +1,280 @@
+
+rancher
+*********
+
+docker run --name rancher --restart=always -d -p 7000:80 -p 7010:443 -v rancher-data:/var/lib/rancher rancher/rancher:v2.3.5
+
+
+
+nfs-persistant-vol
+****
+sudo mkdir /srv/nfs/kubedata -p
+chown nobody: /srv/nfs/kubedata
+yum install nfs-utils
+sudo systemctl enable nfs-server
+sudo systemctl start nfs-server
+ vi /etc/exports
+
+/srv/nfs/kubedata   *(rw,sync,no_subtree_check,no_root_squash,no_all_squash,insecure)
+ sudo exportfs -rav
+
+
+helm install nfs-client-provisioner stable/nfs-client-provisioner --set nfs.server=172.27.11.121 --set nfs.path=/srv/nfs/kubedata
+
+install elk 
+**************
+
+ sudo curl -L "https://github.com/docker/compose/releases/download/1.25.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+ sudo chmod +x /usr/local/bin/docker-compose
+ docker-compose --version
+ git clone https://github.com/justmeandopensource/elk.git
+ cd elk
+ cd docker
+ mv docker-compose-v7.1.1.yml docker-compose.yml
+ vi docker-compose.yml
+ sudo sysctl -w vm.max_map_count=262144
+ vi /etc/sysctl.conf
+ iptables -t filter -N DOCKER
+ sudo systemctl restart docker
+ docker-compose up -d
+ docker-compose logs -f
+ docker-compose ps
+ netstat -nltp | grep docker
+ docker ps
+ 
+ 
+ 
+ elk kubernetes depoloyment
+----------------------
+
+kubectl create namespace logging
+
+helm repo add incubator https://kubernetes-charts-incubator.storage.googleapis.com
+
+helm install elasticsearch stable/elasticsearch \
+    --set master.persistence.enabled=false \
+    --set data.persistence.enabled=false \
+    --namespace logging
+	
+	 helm install kibana stable/kibana --set service.type=NodePort --set service.nodePort=30601 -f /root/values.yaml --namespace logging
+
+
+	
+kubectl apply -f https://raw.githubusercontent.com/fluent/fluent-bit-kubernetes-logging/master/fluent-bit-service-account.yaml
+kubectl apply -f https://raw.githubusercontent.com/fluent/fluent-bit-kubernetes-logging/master/fluent-bit-role.yaml
+kubectl apply -f https://raw.githubusercontent.com/fluent/fluent-bit-kubernetes-logging/master/fluent-bit-role-binding.yaml
+kubectl apply -f https://raw.githubusercontent.com/fluent/fluent-bit-kubernetes-logging/master/output/elasticsearch/fluent-bit-configmap.yaml
+
+You will have to download the YAML file first and modify the FLUENT_ELASTICSEARCH_HOST variable from elasticsearch to elasticsearch-client.
+
+wget https://raw.githubusercontent.com/fluent/fluent-bit-kubernetes-logging/master/output/elasticsearch/fluent-bit-ds.yaml
+
+
+# modify as recommended, then:
+
+kubectl apply -f fluent-bit-ds.yaml
+
+kubectl get pods -n logging
+ 
+helm 3 installation 
+************************
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+  chmod 700 get_helm.sh
+  ./get_helm.sh
+   
+
+metrics-server
+*****************
+   
+helm show values stable/metrics-server > /tmp/metrics-server.values
+helm install metrics-server stable/metrics-server --namespace operations --values /tmp/metrics-server.values
+
+
+
+
+To install MetalLB, apply the manifest:
+***********************************************
+
+kubectl apply -f https://raw.githubusercontent.com/google/metallb/v0.9.3/manifests/namespace.yaml
+kubectl apply -f https://raw.githubusercontent.com/google/metallb/v0.9.3/manifests/metallb.yaml
+# On first install only
+kubectl create secret generic -n metallb-system memberlist --from-literal=secretkey="$(openssl rand -base64 128)"
+
+cat <<EOF>> /root/config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - 172.27.11.240-172.27.11.250
+EOF
+
+kubectl create -f  /root/config.yaml
+
+ 
+ 
+ kafka
+ ******
+ 
+ helm repo add confluentinc https://confluentinc.github.io/cp-helm-charts/
+ 
+ helm repo update
+ 
+ helm install --set cp-schema-registry.enabled=false,cp-kafka-rest.enabled=false,cp-kafka-connect.enabled=false confluentinc/cp-helm-charts
+ 
+ helm test my-confluent-oss
+ 
+ 
+ 
+ 
+ 
+  mongodump --out=/data/backup/mongobackups/`date +"%m-%d-%y"` --username=admin --password="Ecssupport09"
+ 
+  
+ kubectl -n mongo exec -it pod/mongodb-standalone-0 -- /bin/bash
+ 
+ kubectl exec -n mongo mongodb-standalone-0 -- tar cf - /data/backup | tar xf - -C /root/bkup
+
+sudo mongorestore --drop /var/backups  --username=admin --password="Ecssupport09"
+
+
+
+
+kubectl  -n observability patch svc simple-prod-query --type='json' -p '[{"op":"replace","path":"/spec/type","value":"LoadBalancer"}]'
+
+
+kubectl apply -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka
+
+
+
+kubectl get  --all-namespaces | grep Evicted | awk '{print $2 " --namespace=" $1}' | xargs kubectl delete pod
+
+kubectl --namespace=production get pods -a | grep Evicted | awk '{print $1}' | xargs kubectl --namespace=production delete pod -o name
+
+
+kubectl get po --all-namespaces | awk '{if ($4 != "Running") system ("kubectl -n " $1 " delete pods " $2 " --grace-period=0 " " --force ")}'
+
+
+
+kubectl get pods | grep dashboard | awk '{print $1}'
+
+kubectl drain <node-name> --ignore-daemonsets --delete-local-data
+ssh root@172.27.11.121
+sync; echo 2 > /proc/sys/vm/drop_caches 
+kubectl get nodes -o wide | grep Ready | awk '{print $6}'
+
+
+az aks show --resource-group myResourceGroup --name myAKSCluster --query nodeResourceGroup -o tsv
+
+az disk create \
+  --resource-group MC_myResourceGroup_myAKSCluster_eastus \
+  --name myAKSDisk \
+  --size-gb 20 \
+  --query id --output tsv
+  
+  
+  /subscriptions/<subscriptionID>/resourceGroups/MC_myAKSCluster_myAKSCluster_eastus/providers/Microsoft.Compute/disks/myAKSDisk
+  
+  
+  volumeMounts:
+    - name: azure
+      mountPath: /mnt/azure
+  volumes:
+      - name: azure
+        azureDisk:
+          kind: Managed
+          diskName: myAKSDisk
+          diskURI: /subscriptions/<subscriptionID>/resourceGroups/MC_myAKSCluster_myAKSCluster_eastus/providers/Microsoft.Compute/disks/myAKSDisk
+ 
+
+
+
+
+
+ kubectl apply -f https://raw.githubusercontent.com/gjeanmart/kauri-content/master/spring-boot-simple/k8s/kube-state-metrics.yml
+ 
+  kubectl apply -f https://raw.githubusercontent.com/gjeanmart/kauri-content/master/spring-boot-simple/k8s/metricbeat.yml
+ 
+ 
+ <dependency>
+            <groupId>co.elastic.apm</groupId>
+            <artifactId>apm-agent-api</artifactId>
+            <version>${elastic-apm.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>co.elastic.apm</groupId>
+            <artifactId>apm-opentracing</artifactId>
+            <version>${elastic-apm.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.opentracing.contrib</groupId>
+            <artifactId>opentracing-spring-cloud-mongo-starter</artifactId>
+            <version>${opentracing-spring-cloud.version}</version>
+        </dependency>
+		
+		
+		
+		
+		
+		# spring-boot-simple.deployment.yml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: default
+  name: spring-boot-simple
+  labels:
+    app: spring-boot-simple
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spring-boot-simple
+  template:
+    metadata:
+      labels:
+        app: spring-boot-simple
+    spec:
+      containers:
+      - image: gjeanmart/spring-boot-simple:0.0.1-SNAPSHOT
+        imagePullPolicy: Always
+        name: spring-boot-simple
+        command:
+          - "java"
+          - "-javaagent:/apm-agent.jar"
+          - "-Delastic.apm.active=$(ELASTIC_APM_ACTIVE)"
+          - "-Delastic.apm.server_urls=$(ELASTIC_APM_SERVER)"
+          - "-Delastic.apm.service_name=spring-boot-simple"
+          - "-jar"
+          - "app.jar"
+        env:
+          - name: SPRING_DATA_MONGODB_HOST
+            value: mongo
+          - name: ELASTIC_APM_ACTIVE
+            value: "true"
+          - name: ELASTIC_APM_SERVER
+            value: http://apm-server.monitoring.svc.cluster.local:8200
+        ports:
+        - containerPort: 8080
+---
+
+
+
+
+kubectl create namespace observability # <1>
+kubectl create -f https://raw.githubusercontent.com/jaegertracing/jaeger-operator/master/deploy/crds/jaegertracing.io_jaegers_crd.yaml # <2>
+kubectl create -n observability -f https://raw.githubusercontent.com/jaegertracing/jaeger-operator/master/deploy/service_account.yaml
+kubectl create -n observability -f https://raw.githubusercontent.com/jaegertracing/jaeger-operator/master/deploy/role.yaml
+kubectl create -n observability -f https://raw.githubusercontent.com/jaegertracing/jaeger-operator/master/deploy/role_binding.yaml
+kubectl create -n observability -f https://raw.githubusercontent.com/jaegertracing/jaeger-operator/master/deploy/operator.yaml
+
+
+kubectl create -f https://raw.githubusercontent.com/jaegertracing/jaeger-operator/master/deploy/cluster_role.yaml
+kubectl create -f https://raw.githubusercontent.com/jaegertracing/jaeger-operator/master/deploy/cluster_role_binding.yaml
+

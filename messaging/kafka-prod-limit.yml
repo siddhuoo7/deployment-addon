@@ -1,0 +1,50 @@
+apiVersion: kafka.strimzi.io/v1beta1
+kind: Kafka
+metadata:
+  name: kafka-cluster
+spec:
+  kafka:
+    version: 2.5.0
+    replicas: 3
+    listeners:
+      plain: {}
+      tls: {}
+    config:
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      log.message.format.version: "2.5"
+      num.partitions: 8
+      min.insync.replicas: 2
+    tlsSidecar:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 128Mi
+    storage:
+      type: jbod
+      volumes:
+      - id: 0
+        type: persistent-claim
+        size: 64Gi
+        deleteClaim: false
+  zookeeper:
+    replicas: 3
+    storage:
+      type: persistent-claim
+      size: 32Gi
+      deleteClaim: false
+    tlsSidecar:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 128Mi
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}

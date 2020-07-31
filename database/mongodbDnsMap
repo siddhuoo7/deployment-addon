@@ -1,0 +1,55 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: mongo
+  namespace: default
+spec:
+  type: ExternalName
+  externalName: database.mongo.svc.cluster.local
+  ports:
+  - port: 27017
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: mongo-rs0
+  namespace: default
+spec:
+  type: ExternalName
+  externalName: mongo-mongodb-replicaset-0.mongo-mongodb-replicaset.mongo.svc.cluster.local
+  ports:
+  - port: 27017
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: mongo-rs1
+  namespace: default
+spec:
+  type: ExternalName
+  externalName: mongo-mongodb-replicaset-1.mongo-mongodb-replicaset.mongo.svc.cluster.local
+  ports:
+  - port: 27017
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: mongo-rs2
+  namespace: default
+spec:
+  type: ExternalName
+  externalName: mongo-mongodb-replicaset-2.mongo-mongodb-replicaset.mongo.svc.cluster.local
+  ports:
+  - port: 27017
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: mem-cpu-mongo
+  namespace: mongo
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 2Gi
+    limits.cpu: "2"
+    limits.memory: 4Gi

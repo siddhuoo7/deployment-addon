@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb-standalone
+spec:
+  serviceName: database
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+        selector: mongodb-standalone
+    spec:
+      containers:
+      - name: mongodb-standalone
+        image: mongo:4.0.8
+        imagePullPolicy: "IfNotPresent"
+        env:
+          - name: MONGO_INITDB_ROOT_USERNAME_FILE
+            value: /etc/mongo-secret/admin/MONGO_ROOT_USERNAME
+          - name: MONGO_INITDB_ROOT_PASSWORD_FILE
+            value: /etc/mongo-secret/admin/MONGO_ROOT_PASSWORD
+          - name: MONGO_INITDB_DATABASE
+            value: /etc/mongo-secret/admin/MONGO_INITDB_DATABASE
+        volumeMounts:
+        - name: mongo-secret
+          mountPath: /etc/mongo-secret
+          readOnly: true
+        - name: mongodb-data
+          mountPath: /data/db
+      volumes:
+        - name: mongo-secret
+          secret:
+            secretName: mongo-secret
+            items:
+            - key: MONGO_ROOT_USERNAME
+              path: admin/MONGO_ROOT_USERNAME
+              mode: 0444
+            - key: MONGO_ROOT_PASSWORD
+              path: admin/MONGO_ROOT_PASSWORD
+              mode: 0444
+            - key: MONGO_INITDB_DATABASE
+              path: admin/MONGO_INITDB_DATABASE
+              mode: 0444
+        - name: mongodb-data
+          persistentVolumeClaim:
+            claimName: mongodb-pv-claim
+#      nodeSelector:
+#        kubernetes.io/hostname: mongodb-node
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database
+  labels:
+    app: database
+spec:
+  clusterIP: None
+  selector:
+    app: database
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-secret
+type: Opaque
+data:
+  MONGO_ROOT_USERNAME: YWRtaW4K
+  MONGO_ROOT_PASSWORD: RWNzc3VwcG9ydDA5
+  MONGO_INITDB_DATABASE: YWRtaW4K
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: mongodb-pv-claim
+spec:
+  storageClassName: null
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 5Gi
